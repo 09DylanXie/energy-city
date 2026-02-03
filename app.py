@@ -12,13 +12,13 @@ class EnergyCityAssistant:
             "Fusion Cell": 0, "Dura-Steel": 0, "Fusion Core": 0,
             "Battery": 0, "Battery_Charge": 0
         }
-        self.buildings = [] # Max 6 [cite: 3]
-        self.utility_slots = [] # Max 3 [cite: 3]
+        self.buildings = [] 
+        self.utility_slots = [] 
         self.pending_watts = 0
         self.fusion_plants_built = 0
         self.turn_num = 1
         self.battery_bought_turn = -1
-        self.factory_used_this_turn = 0 # Max 6 per turn [cite: 19]
+        self.factory_used_this_turn = 0 
         self.history = []
         self.stats_history = [{"Turn": 1, "Gold": 150, "Watts": 5}]
 
@@ -61,6 +61,7 @@ if not st.session_state.game_started:
     if st.button("Start Game", use_container_width=True):
         if player_name:
             st.session_state.game = EnergyCityAssistant(player_name)
+            st.session_state.logs = [f"Game started for {player_name}"]
             st.session_state.game_started = True
             st.rerun()
     st.stop()
@@ -68,7 +69,7 @@ if not st.session_state.game_started:
 game = st.session_state.game
 
 # --- WIN CONDITION ---
-if game.fusion_plants_built >= 2: # [cite: 2]
+if game.fusion_plants_built >= 2:
     st.balloons()
     st.markdown("<h1 style='text-align: center; color: gold;'>🏆 VICTORY!</h1>", unsafe_allow_html=True)
     if st.button("New Game", use_container_width=True):
@@ -83,7 +84,7 @@ st.sidebar.metric("💰 Gold", game.resources["Gold"])
 st.sidebar.metric("⚡ Watts", game.resources["Watts"])
 if game.resources["Battery"] > 0:
     st.sidebar.write(f"🔋 Battery: {game.resources['Battery_Charge']}/7W")
-    st.sidebar.progress(game.resources["Battery_Charge"] / 7)
+    st.sidebar.progress(game.resources["Battery_Charge"] / 7.0)
 st.sidebar.write("---")
 st.sidebar.subheader("📦 Inventory")
 icons = {"Wood": "🪵", "Iron": "⛓️", "Steel": "🏗️", "Coal": "🪨", "Oil": "🛢️", "Re-Oil": "🧪", "Uranium": "☢️", "Deuterium": "💧", "Fission Cell": "🔋", "Fusion Cell": "⚛️", "Dura-Steel": "💎", "Fusion Core": "☀️"}
@@ -92,26 +93,25 @@ for res, val in game.resources.items():
         st.sidebar.write(f"{icons.get(res, '📦')} **{res}:** {val}")
 
 # --- ACTION TABS ---
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🛒 Market", "🏗️ Grid", "⚙️ Utility", "🧪 Refine", "🔋 Battery"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🛒 Market", "🏗️ Grid", "⚙️ Utility", "🧪 Refine", "🔋 Battery", "📜 History"])
 
 with tab1:
-    st.subheader("Marketplace")
     m_action = st.radio("Action", ["Buy", "Sell", "Trade"], horizontal=True)
-    
     if m_action == "Buy":
-        prices = {"Wood (20G)": ("Wood", 20), "Iron (20G)": ("Iron", 20), "Coal (40G)": ("Coal", 40), "Steel (70G)": ("Steel", 70), "Oil (50G)": ("Oil", 50), "Uranium (40G)": ("Uranium", 40), "Deuterium (90G)": ("Deuterium", 90), "Battery (10G)": ("Battery", 10)} # [cite: 36-39]
+        prices = {"Wood (20G)": ("Wood", 20), "Iron (20G)": ("Iron", 20), "Coal (40G)": ("Coal", 40), "Steel (70G)": ("Steel", 70), "Oil (50G)": ("Oil", 50), "Uranium (40G)": ("Uranium", 40), "Deuterium (90G)": ("Deuterium", 90), "Battery (10G)": ("Battery", 10)}
         choice = st.selectbox("Select Item", list(prices.keys()))
         item_name, item_price = prices[choice]
-        qty = st.number_input("Quantity (Max 3/turn)", 1, 3, 1) # [cite: 35]
+        qty = st.number_input("Quantity (Max 3/turn)", 1, 3, 1)
         cost = item_price * qty
         if st.button(f"Purchase {qty}x {item_name} ({cost}G)"):
-            if item_name == "Battery" and game.resources["Battery"] > 0: st.error("Max 1 Battery.") # [cite: 41]
+            if item_name == "Battery" and game.resources["Battery"] > 0: st.error("Max 1 Battery.")
             elif game.resources["Gold"] >= cost:
                 game.save_state(); game.resources["Gold"] -= cost; game.resources[item_name] += qty
                 if item_name == "Battery": game.battery_bought_turn = game.turn_num
+                st.session_state.logs.insert(0, f"Turn {game.turn_num}: Bought {qty} {item_name} from Shop")
                 st.rerun()
     elif m_action == "Sell":
-        sell_opts = {"Steel (20G)": ("Steel", 20, "Gold"), "Re-Oil (20G)": ("Re-Oil", 20, "Gold"), "Fission Cell (20G)": ("Fission Cell", 20, "Gold"), "Fusion Cell (20G)": ("Fusion Cell", 20, "Gold"), "Wood (1W)": ("Wood", 1, "Watts"), "Iron (1W)": ("Iron", 1, "Watts"), "Coal (1W)": ("Coal", 1, "Watts"), "Oil (1W)": ("Oil", 1, "Watts")} # [cite: 16, 17]
+        sell_opts = {"Steel (20G)": ("Steel", 20, "Gold"), "Re-Oil (20G)": ("Re-Oil", 20, "Gold"), "Fission Cell (20G)": ("Fission Cell", 20, "Gold"), "Fusion Cell (20G)": ("Fusion Cell", 20, "Gold"), "Wood (1W)": ("Wood", 1, "Watts"), "Iron (1W)": ("Iron", 1, "Watts"), "Coal (1W)": ("Coal", 1, "Watts"), "Oil (1W)": ("Oil", 1, "Watts")}
         s_choice = st.selectbox("Select Item to Sell", list(sell_opts.keys()))
         s_name, s_val, s_type = sell_opts[s_choice]
         if st.button(f"Sell 1 unit of {s_name}"):
@@ -119,89 +119,82 @@ with tab1:
                 game.save_state()
                 if s_type == "Gold": game.resources["Gold"] += s_val
                 else: game.resources["Watts"] += s_val
-                game.resources[s_name] -= 1; st.rerun()
+                game.resources[s_name] -= 1; st.session_state.logs.insert(0, f"Turn {game.turn_num}: Sold 1 {s_name}"); st.rerun()
     else:
         st.subheader("🤝 Player Trade")
         trade_items = ["Gold", "Wood", "Iron", "Coal", "Steel", "Oil", "Re-Oil", "Uranium", "Deuterium", "Fission Cell", "Fusion Cell", "Dura-Steel", "Fusion Core"]
         col1, col2 = st.columns(2)
-        
         give_res = col1.selectbox("Give away:", trade_items)
         give_qty = col1.number_input("Qty to Give:", 0, 1000, 0)
-        
-        receive_res = col2.selectbox("Receive from player:", trade_items)
+        receive_res = col2.selectbox("Receive:", trade_items)
         receive_qty = col2.number_input("Qty to Receive:", 0, 1000, 0)
-        
         if st.button("Execute Trade"):
             if game.resources.get(give_res, 0) >= give_qty:
-                game.save_state()
-                game.resources[give_res] -= give_qty
-                game.resources[receive_res] += receive_qty
-                st.success(f"Traded {give_qty} {give_res} for {receive_qty} {receive_res}!")
-                st.rerun()
-            else:
-                st.error(f"You don't have enough {give_res}!")
+                game.save_state(); game.resources[give_res] -= give_qty; game.resources[receive_res] += receive_qty
+                st.session_state.logs.insert(0, f"Turn {game.turn_num}: Traded {give_qty} {give_res} for {receive_qty} {receive_res}"); st.rerun()
 
 with tab2:
-    st.subheader("Power Grid")
-    st.write(f"Used Slots: {len(game.buildings)} / 6") # [cite: 3]
+    st.write(f"Used Slots: {len(game.buildings)} / 6")
     st.progress(len(game.buildings)/6)
-    
-    plants = {"Bio (20G + 3 Wood)": ("Bio", 20, "Wood", 3), "Coal (30G + 3 Coal)": ("Coal", 30, "Coal", 3), "Oil (50G + 3 Re-Oil)": ("Oil", 50, "Re-Oil", 3), "Fission (100G + 3 Fission Cell)": ("Fission", 100, "Fission Cell", 3), "Fusion (150G + 1 Fusion Core)": ("Fusion", 150, "Fusion Core", 1)} # [cite: 9, 10]
+    plants = {"Bio (20G+3Wd)": ("Bio", 20, "Wood", 3), "Coal (30G+3Cl)": ("Coal", 30, "Coal", 3), "Oil (50G+3Re)": ("Oil", 50, "Re-Oil", 3), "Fission (100G+3Fi)": ("Fission", 100, "Fission Cell", 3), "Fusion (150G+1Core)": ("Fusion", 150, "Fusion Core", 1)}
     p_choice = st.selectbox("Build New Plant", list(plants.keys()))
     p_type, p_gold, p_mat, p_amt = plants[p_choice]
-    
     if st.button("Construct Plant"):
         if len(game.buildings) < 6 and game.resources["Gold"] >= p_gold and game.resources.get(p_mat, 0) >= p_amt:
             game.save_state(); game.resources["Gold"] -= p_gold; game.resources[p_mat] -= p_amt
-            game.buildings.append({'type': p_type, 'active': False}); st.rerun()
-    
+            game.buildings.append({'type': p_type, 'active': False})
+            if p_type == "Fusion": game.fusion_plants_built += 1
+            st.rerun()
     st.divider()
-    pwr_data = {"Bio": {"cost": 1, "prod": 2}, "Coal": {"cost": 2, "prod": 4}, "Oil": {"cost": 3, "prod": 7}, "Fission": {"cost": 4, "prod": 10}, "Fusion": {"cost": 5, "prod": 15}} # [cite: 13]
-    
+    pwr_data = {"Bio": (1, 2), "Coal": (2, 4), "Oil": (3, 7), "Fission": (4, 10), "Fusion": (5, 15)}
     for i, b in enumerate(game.buildings):
         c1, c2, c3 = st.columns([2, 1, 1])
-        stats = pwr_data[b['type']]
-        icon = "🟢" if b['active'] else "⚪"
-        c1.write(f"{icon} **{b['type']}** (⚡-{stats['cost']}W | ⚡+{stats['prod']}W)")
-        if not b['active'] and c2.button(f"Power", key=f"pwr_{i}"):
-            if game.resources["Watts"] >= stats['cost']:
-                game.save_state(); game.resources["Watts"] -= stats['cost']; b['active'] = True
-                game.pending_watts += stats['prod']; st.rerun()
+        c_pwr, p_pwr = pwr_data[b['type']]
+        c1.write(f"{'🟢' if b['active'] else '⚪'} **{b['type']}** (⚡-{c_pwr} | ⚡+{p_pwr})")
+        if not b['active'] and c2.button("Power", key=f"pwr_{i}"):
+            if game.resources["Watts"] >= c_pwr:
+                game.save_state(); game.resources["Watts"] -= c_pwr; b['active'] = True
+                game.pending_watts += p_pwr; st.rerun()
         if c3.button("🗑️", key=f"del_b_{i}"):
-            refund = {"Bio": 20, "Coal": 30, "Oil": 50, "Fission": 100, "Fusion": 150} # [cite: 11]
-            game.save_state(); game.resources["Gold"] += refund[b['type']]
-            game.buildings.pop(i); st.rerun()
+            refund = {"Bio": 20, "Coal": 30, "Oil": 50, "Fission": 100, "Fusion": 150}
+            game.save_state(); game.resources["Gold"] += refund[b['type']]; game.buildings.pop(i); st.rerun()
 
 with tab3:
-    st.subheader("Utility Management")
-    st.write(f"Used Slots: {len(game.utility_slots)} / 3") # [cite: 3]
+    st.write(f"Used Slots: {len(game.utility_slots)} / 3")
     st.progress(len(game.utility_slots)/3)
-    
-    u_opts = {"Factory (10G+1Wd)": "Factory", "Refinery (20G+1Ir)": "Refinery", "Mine (60G+1St)": "Mine"} # [cite: 9]
-    u_choice = st.selectbox("Build Utility", list(u_opts.keys()))
-    if st.button("Construct"):
+    u_opts = {"Factory (10G+1Wd)": "Factory", "Refinery (20G+1Ir)": "Refinery", "Mine (60G+1St)": "Mine"}
+    u_choice = st.selectbox("Construct Utility", list(u_opts.keys()))
+    if st.button("Build Utility"):
         costs = {"Factory": (10, "Wood", 1), "Refinery": (20, "Iron", 1), "Mine": (60, "Steel", 1)}
         u_gold, u_mat, u_amt = costs[u_opts[u_choice]]
         if len(game.utility_slots) < 3 and game.resources["Gold"] >= u_gold and game.resources[u_mat] >= u_amt:
             game.save_state(); game.resources["Gold"] -= u_gold; game.resources[u_mat] -= u_amt
             game.utility_slots.append(u_opts[u_choice]); st.rerun()
-
     if "Factory" in game.utility_slots:
-        st.divider(); st.subheader("🏭 Factory Production")
-        rem_factory = 6 - game.factory_used_this_turn # [cite: 19]
-        if rem_factory > 0:
-            f_res = st.selectbox("Resource", ["Wood", "Iron", "Coal", "Oil", "Uranium"])
-            f_amt = st.slider("Units", 1, rem_factory, 1)
-            if st.button(f"Produce {f_amt} {f_res} (Cost: {f_amt}W)"): # [cite: 20]
+        st.divider(); st.subheader("🏭 Factory")
+        rem = 6 - game.factory_used_this_turn
+        if rem > 0:
+            f_res = st.selectbox("Produce", ["Wood", "Iron", "Coal", "Oil", "Uranium"])
+            if rem > 1:
+                f_amt = st.slider("Units", 1, rem, 1)
+            else:
+                f_amt = 1
+                st.info("Capacity: 1 unit remaining.")
+            
+            if st.button(f"Produce {f_amt} {f_res} (Cost: {f_amt}W)"):
                 if game.resources["Watts"] >= f_amt:
                     game.save_state(); game.resources["Watts"] -= f_amt; game.resources[f_res] += f_amt
                     game.factory_used_this_turn += f_amt; st.rerun()
-        else: st.warning("Factory limit reached!")
+        else: st.warning("Capacity full.")
+    st.write("---")
+    for i, u in enumerate(game.utility_slots):
+        c1, c2 = st.columns([3, 1])
+        c1.write(f"- {u}")
+        if c2.button("🗑️", key=f"del_u_{i}"):
+            game.save_state(); game.utility_slots.pop(i); st.rerun()
 
 with tab4:
-    st.subheader("🧪 Refinement")
     if "Refinery" in game.utility_slots:
-        # [cite: 22, 24-34]
         ref_rules = {
             "Steel (1 Iron + 2W)": ("Steel", {"Iron": 1}, 2),
             "Dura-Steel (1 Steel + 5W)": ("Dura-Steel", {"Steel": 1}, 5),
@@ -209,44 +202,52 @@ with tab4:
             "Deuterium (3 Uranium + 1W)": ("Deuterium", {"Uranium": 3}, 1),
             "Fission Cell (2 Uranium + 2W)": ("Fission Cell", {"Uranium": 2}, 2),
             "Fusion Cell (2 Deuterium + 3W)": ("Fusion Cell", {"Deuterium": 2}, 3),
-            "Fusion Core (3 Dura-Steel + 3 Fusion Cell + 50G + 18W)": ("Fusion Core", {"Dura-Steel": 3, "Fusion Cell": 3, "Gold": 50}, 18)
+            "Fusion Core (3 Dura+3Cell+18W+50G)": ("Fusion Core", {"Dura-Steel": 3, "Fusion Cell": 3, "Gold": 50}, 18)
         }
         r_choice = st.selectbox("Select Refinement", list(ref_rules.keys()))
         target, mats, r_watts = ref_rules[r_choice]
-        if st.button("Begin Refinement"):
-            can_afford = all(game.resources.get(m, 0) >= a for m, a in mats.items()) and game.resources["Watts"] >= r_watts
-            if can_afford:
+        if st.button("Refine"):
+            if all(game.resources.get(m, 0) >= a for m, a in mats.items()) and game.resources["Watts"] >= r_watts:
                 game.save_state()
                 for m, a in mats.items(): game.resources[m] -= a
                 game.resources["Watts"] -= r_watts; game.resources[target] += 1; st.rerun()
-            else: st.error("Missing components!")
+    else: st.info("Need a Refinery utility.")
 
 with tab5:
-    st.subheader("🔋 Battery")
     if game.resources["Battery"] > 0:
-        max_c = min(game.resources["Watts"], 7 - game.resources["Battery_Charge"]) # [cite: 41]
-        if max_c > 0:
+        max_c = min(game.resources["Watts"], 7 - game.resources["Battery_Charge"])
+        if max_c > 1:
             c_amt = st.slider("Charge Watts", 0, max_c, 0)
-            if st.button("Move to Battery"):
+            if st.button("Store Energy"):
                 game.save_state(); game.resources["Watts"] -= c_amt; game.resources["Battery_Charge"] += c_amt; st.rerun()
+        elif max_c == 1:
+            if st.button("Store 1 Watt"):
+                game.save_state(); game.resources["Watts"] -= 1; game.resources["Battery_Charge"] += 1; st.rerun()
+        else:
+            st.info("Battery full or 0 Watts available.")
         
-        if st.button("Sell Battery") and game.turn_num > game.battery_bought_turn: # [cite: 42]
-            resale = 10 + (10 * game.resources["Battery_Charge"]) # [cite: 41]
-            game.save_state(); game.resources["Gold"] += resale
-            game.resources["Battery"] = 0; game.resources["Battery_Charge"] = 0; st.rerun()
+        if st.button("Sell Battery") and game.turn_num > game.battery_bought_turn:
+            resale = 10 + (10 * game.resources["Battery_Charge"])
+            game.save_state(); game.resources["Gold"] += resale; game.resources["Battery"] = 0; st.rerun()
+    else: st.info("Buy a Battery in Market.")
+
+with tab6:
+    st.subheader("Turn History")
+    df = pd.DataFrame(game.stats_history)
+    st.line_chart(df.set_index("Turn"))
+    st.write("**Activity Log:**")
+    for log in st.session_state.logs[:15]: st.write(f"- {log}")
 
 # --- FOOTER ---
 st.divider()
 c1, c2, c3 = st.columns(3)
-if c1.button("↩️ Undo", use_container_width=True):
-    game.undo(); st.rerun()
+if c1.button("↩️ Undo", use_container_width=True): game.undo(); st.rerun()
 if c2.button("⏭️ End Turn", use_container_width=True):
-    game.save_state()
-    game.turn_num += 1
-    game.resources["Watts"] += game.pending_watts; game.pending_watts = 0 # [cite: 13]
+    game.save_state(); game.turn_num += 1
+    game.resources["Watts"] += game.pending_watts; game.pending_watts = 0
     for b in game.buildings: b['active'] = False
-    game.resources["Gold"] += (game.utility_slots.count("Mine") * 30) + 20 # [cite: 6, 21]
-    game.factory_used_this_turn = 0
+    mines = game.utility_slots.count("Mine")
+    game.resources["Gold"] += (mines * 30) + 20
+    game.factory_used_this_turn = 0; game.stats_history.append({"Turn": game.turn_num, "Gold": game.resources["Gold"], "Watts": game.resources["Watts"]})
     st.rerun()
-if c3.button("🗑️ Reset", use_container_width=True):
-    st.session_state.clear(); st.rerun()
+if c3.button("🗑️ Reset", use_container_width=True): st.session_state.clear(); st.rerun()
